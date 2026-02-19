@@ -470,6 +470,21 @@
     box-shadow: 0 0 60px rgba(171, 71, 188, 0.5);
   }
 
+  /* Layer4発見トースト — 究極演出 */
+  #discovery-toast.layer4 {
+    border-color: transparent;
+    background: linear-gradient(rgba(26,26,46,0.97), rgba(26,26,46,0.97)) padding-box,
+                linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4ecdc4, #a29bfe, #fd79a8) border-box;
+    border: 3px solid transparent;
+    box-shadow: 0 0 80px rgba(160, 100, 255, 0.7), 0 0 30px rgba(255, 100, 200, 0.4);
+    animation: toast-pulse-legendary 1.5s ease-in-out infinite;
+  }
+
+  @keyframes toast-pulse-legendary {
+    0%, 100% { box-shadow: 0 0 80px rgba(160,100,255,0.7), 0 0 30px rgba(255,100,200,0.4); }
+    50%       { box-shadow: 0 0 120px rgba(255,100,200,0.9), 0 0 50px rgba(100,200,255,0.6); }
+  }
+
   .toast-layer {
     font-size: 11px;
     letter-spacing: 1.5px;
@@ -479,6 +494,25 @@
   }
 
   .toast-layer.rare { color: #ab47bc; }
+  .toast-layer.legendary {
+    background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #a29bfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  /* 虹色フラッシュ */
+  #flash-overlay.rainbow {
+    background: conic-gradient(
+      rgba(255,107,107,0.15), rgba(255,217,61,0.15),
+      rgba(107,203,119,0.15), rgba(78,205,196,0.15),
+      rgba(162,155,254,0.15), rgba(253,121,168,0.15),
+      rgba(255,107,107,0.15)
+    );
+    transition: opacity 0.3s;
+  }
 
   /* ゲームオーバーのdiscovery情報 */
   .final-disc {
@@ -513,11 +547,11 @@
   <span class="score-val" id="score-val">0</span>
   <span class="score-sep">·</span>
   <span>Found:</span>
-  <span class="discovery-count" id="disc-count">0 / 20</span>
+  <span class="discovery-count" id="disc-count">0 / 30</span>
   <span id="combo-display" class="combo-hidden"></span>
 </div>
 
-<p class="hint">Click an element, then click an adjacent same-type to merge</p>
+<p class="hint">Select an element — highlighted cells can merge. Discover all 30 elements!</p>
 
 <div class="main-layout">
   <div class="grid-wrapper">
@@ -587,6 +621,19 @@ const ELEMENTS = {
   flood:     { id: 'flood',     emoji: '🌊', label: 'Flood',     color: '#1565c0', layer: 3 },
   clay:      { id: 'clay',      emoji: '🧱', label: 'Clay',      color: '#bf360c', layer: 3 },
   plasma:    { id: 'plasma',    emoji: '🔮', label: 'Plasma',    color: '#ab47bc', layer: 3 },
+  // Layer 3 拡張 — 異種合成で生まれるレア元素
+  tornado:   { id: 'tornado',   emoji: '🌪️', label: 'Tornado',   color: '#90a4ae', layer: 3 },
+  swamp:     { id: 'swamp',     emoji: '🍃', label: 'Swamp',     color: '#33691e', layer: 3 },
+  inferno:   { id: 'inferno',   emoji: '💢', label: 'Inferno',   color: '#e53935', layer: 3 },
+  magma:     { id: 'magma',     emoji: '🟠', label: 'Magma',     color: '#e64a19', layer: 3 },
+
+  // Layer 4 — 究極元素 (Layer3同士の合成でのみ生まれる)
+  hurricane: { id: 'hurricane', emoji: '🌀', label: 'Hurricane', color: '#5c6bc0', layer: 4 },
+  glacier:   { id: 'glacier',   emoji: '🏔️', label: 'Glacier',   color: '#b3e5fc', layer: 4 },
+  obsidian:  { id: 'obsidian',  emoji: '🖤', label: 'Obsidian',  color: '#546e7a', layer: 4 },
+  life:      { id: 'life',      emoji: '🌱', label: 'Life',      color: '#66bb6a', layer: 4 },
+  aurora:    { id: 'aurora',    emoji: '🌌', label: 'Aurora',    color: '#7c4dff', layer: 4 },
+  cosmos:    { id: 'cosmos',    emoji: '✨', label: 'Cosmos',    color: '#e040fb', layer: 4 },
 };
 
 // 合成ルール: ソートして正規化することで A+B = B+A を保証する
@@ -611,6 +658,19 @@ const MERGE_RULES = {
   'mud+storm':        'flood',
   'ash+water':        'clay',
   'dust+lightning':   'plasma',
+  // Layer 3 拡張 — 異種合成
+  'steam+wind':       'tornado',   // 蒸気 × 風 = 竜巻
+  'flood+mud':        'swamp',     // 洪水 × 泥 = 沼
+  'fire+lightning':   'inferno',   // 火 × 雷 = 業火
+  'earth+lava':       'magma',     // 地球 × 溶岩 = マグマ
+
+  // Layer 4 — 究極合成 (600pts each)
+  'cloud+tornado':    'hurricane', // 雲 × 竜巻 = ハリケーン
+  'ice+rock':         'glacier',   // 氷 × 岩 = 氷河
+  'ice+magma':        'obsidian',  // 氷 × マグマ = 黒曜石
+  'clay+oasis':       'life',      // 粘土 × オアシス = 生命
+  'mist+plasma':      'aurora',    // 霧 × プラズマ = オーロラ
+  'inferno+storm':    'cosmos',    // 業火 × 嵐 = コスモス
 };
 
 // 初期配置で出現する基本元素のみ（Layer1）
@@ -721,7 +781,7 @@ function selectCell(row, col) {
   });
 }
 
-// 隣接する同種セル（マージ可能な対象）を返す
+// 隣接する合成可能なセルを返す（同種 + MERGE_RULESに定義された異種合成も対象）
 function getAdjacentMergeable(row, col, elemId) {
   const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
   return dirs
@@ -729,7 +789,8 @@ function getAdjacentMergeable(row, col, elemId) {
     .filter(({ r, c }) =>
       r >= 0 && r < GRID_SIZE &&
       c >= 0 && c < GRID_SIZE &&
-      grid[r][c] === elemId
+      grid[r][c] !== null &&
+      getMergeResult(elemId, grid[r][c]) !== null
     );
 }
 
@@ -794,7 +855,7 @@ function mergeElements(fromRow, fromCol, toRow, toCol) {
 
   // スコア計算（コンボ込み）
   const resultElem = ELEMENTS[resultId];
-  const basePoints = resultElem.layer === 3 ? 300 : 100;
+  const basePoints = resultElem.layer >= 4 ? 600 : resultElem.layer === 3 ? 300 : 100;
   incrementCombo();
   const pts = basePoints * Math.max(1, combo);
   score += pts;
@@ -807,16 +868,18 @@ function mergeElements(fromRow, fromCol, toRow, toCol) {
   const isNew = !discovered[resultId];
   if (isNew) {
     discovered[resultId] = true;
-    score += 500; // 新発見ボーナス
+    score += resultElem.layer >= 4 ? 1000 : 500; // Layer4は豪華な新発見ボーナス
     saveDiscovered();
     showDiscoveryToast(resultId);
-    if (resultElem.layer === 3) flashScreen(); // レアはフラッシュ演出
+    if (resultElem.layer === 3) flashScreen();
+    if (resultElem.layer >= 4) rainbowFlash(); // Layer4専用虹色フラッシュ
   }
 
-  // マージアニメーション + パーティクル
+  // マージアニメーション + パーティクル（Layerに応じて量を変える）
   const targetCellEl = getCellEl(toRow, toCol);
   const rect = targetCellEl.getBoundingClientRect();
-  spawnParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, resultElem.color);
+  const particleCount = resultElem.layer >= 4 ? 24 : resultElem.layer === 3 ? 16 : 8;
+  spawnParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, resultElem.color, particleCount, resultElem.layer >= 4);
 
   renderCell(toRow, toCol);
   targetCellEl.classList.add('merge-anim');
@@ -888,12 +951,12 @@ function isGameOver() {
     for (let c = 0; c < GRID_SIZE; c++) {
       const id = grid[r][c];
       if (!id) continue;
-      // 右と下の隣接だけチェックすれば全ペアを重複なく網羅できる
-      if (c + 1 < GRID_SIZE && grid[r][c+1] === id) return false;
-      if (r + 1 < GRID_SIZE && grid[r+1][c] === id) return false;
+      // 右と下の隣接をチェック（getMergeResultで異種合成も含めて判定）
+      if (c + 1 < GRID_SIZE && grid[r][c+1] && getMergeResult(id, grid[r][c+1])) return false;
+      if (r + 1 < GRID_SIZE && grid[r+1][c] && getMergeResult(id, grid[r+1][c])) return false;
     }
   }
-  return true; // マージ可能ペアがゼロ
+  return true; // 合成可能ペアがゼロ
 }
 
 function triggerGameOver() {
@@ -936,19 +999,24 @@ function updateComboDisplay() {
 // =====================================================
 // VFX: パーティクル爆発
 // =====================================================
-function spawnParticles(cx, cy, color) {
-  const count = 8;
+// rainbow colors for Layer4 particles
+const RAINBOW = ['#ff6b6b','#ffd93d','#6bcb77','#4ecdc4','#a29bfe','#fd79a8','#fdcb6e'];
+
+function spawnParticles(cx, cy, color, count = 8, rainbow = false) {
   for (let i = 0; i < count; i++) {
     const p = document.createElement('div');
     p.className = 'particle';
-    const angle = (i / count) * Math.PI * 2;
-    const dist = 40 + Math.random() * 30;
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+    const dist = 40 + Math.random() * 50;
     const dx = Math.cos(angle) * dist;
     const dy = Math.sin(angle) * dist;
+    const c = rainbow ? RAINBOW[i % RAINBOW.length] : color;
     p.style.cssText = `
       left: ${cx - 3.5}px;
       top:  ${cy - 3.5}px;
-      background: ${color};
+      background: ${c};
+      width: ${rainbow ? 9 : 7}px;
+      height: ${rainbow ? 9 : 7}px;
       --dx: ${dx}px;
       --dy: ${dy}px;
     `;
@@ -980,6 +1048,26 @@ function flashScreen() {
 }
 
 // =====================================================
+// VFX: 虹色フラッシュ (Layer4発見時 — 究極演出)
+// =====================================================
+function rainbowFlash() {
+  flashOverlay.classList.add('active', 'rainbow');
+  setTimeout(() => {
+    flashOverlay.classList.remove('active', 'rainbow');
+  }, 600);
+  // 追加: スクリーン全体をパーティクルで包む
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      spawnParticles(
+        window.innerWidth * (0.2 + Math.random() * 0.6),
+        window.innerHeight * (0.2 + Math.random() * 0.6),
+        '#fff', 12, true
+      );
+    }, i * 80);
+  }
+}
+
+// =====================================================
 // 新発見演出
 // =====================================================
 let toastTimer = null;
@@ -989,13 +1077,17 @@ function showDiscoveryToast(elementId) {
   toastEmoji.textContent = elem.emoji;
   toastName.textContent = elem.label;
 
-  // Layer3はレア演出を付加
-  if (elem.layer === 3) {
+  // Layerに応じた演出
+  toast.classList.remove('layer3', 'layer4');
+  if (elem.layer >= 4) {
+    toast.classList.add('layer4');
+    toastLayer.textContent = '✨ ULTIMATE DISCOVERY! ✨';
+    toastLayer.className = 'toast-layer legendary';
+  } else if (elem.layer === 3) {
     toast.classList.add('layer3');
     toastLayer.textContent = 'RARE DISCOVERY!';
     toastLayer.className = 'toast-layer rare';
   } else {
-    toast.classList.remove('layer3');
     toastLayer.textContent = `Layer ${elem.layer} element`;
     toastLayer.className = 'toast-layer';
   }
