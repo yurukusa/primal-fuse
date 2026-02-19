@@ -1570,8 +1570,8 @@ function triggerVictory() {
 
 function shareVictory() {
   const total = Object.keys(ELEMENTS).length;
-  const text = `🌌 I discovered ALL ${total} elements in Primal Fuse!\n🏆 Score: ${score.toLocaleString()}\n\nCan you crack the Primal Fuse? #PrimalFuse #GameJam #puzzle`;
-  const url = 'https://yurukusa.github.io/primal-fuse/';
+  const text = `🌌 I discovered ALL ${total} elements in Primal Fuse!\n🏆 Score: ${score.toLocaleString()}\n\nCan you crack the Primal Fuse? #PrimalFuse #AIBrowserGameJam #puzzle`;
+  const url = 'https://yurukusa.itch.io/primal-fuse';
   if (navigator.share) {
     navigator.share({ title: 'Primal Fuse — COMPLETE!', text, url }).catch(() => {});
   } else {
@@ -1678,7 +1678,7 @@ function shareDiscovery() {
   const discCount = Object.keys(discovered).length;
   const total = Object.keys(ELEMENTS).length;
   const layerLabel = elem.layer >= 4 ? '✨ ULTIMATE' : elem.layer === 3 ? '⚡ RARE' : `Layer ${elem.layer}`;
-  const text = `${elem.emoji} Discovered "${elem.label}"! ${layerLabel}\n🏆 Score: ${score.toLocaleString()} — ${discCount}/${total} elements found\n\n#PrimalFuse #GameJam`;
+  const text = `${elem.emoji} Discovered "${elem.label}"! ${layerLabel}\n🏆 Score: ${score.toLocaleString()} — ${discCount}/${total} elements found\n\n#PrimalFuse #AIBrowserGameJam #puzzle`;
   const url = 'https://yurukusa.itch.io/primal-fuse';
 
   if (navigator.share) {
