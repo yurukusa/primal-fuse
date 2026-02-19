@@ -61,11 +61,12 @@
   .score-bar {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     justify-content: center;
     padding: 8px 20px;
     font-size: 14px;
     color: var(--text-muted);
+    flex-wrap: wrap; /* モバイルで折り返し */
   }
 
   .score-bar .discovery-count {
