@@ -503,6 +503,28 @@
     font-weight: 900;
   }
 
+  /* 発見共有ボタン */
+  #toast-share-btn {
+    display: none;
+    margin-top: 12px;
+    padding: 8px 20px;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.2s, transform 0.1s;
+  }
+  #toast-share-btn:hover {
+    background: rgba(255,255,255,0.15);
+    transform: scale(1.04);
+  }
+  #discovery-toast.show #toast-share-btn { display: inline-block; }
+
   /* 虹色フラッシュ */
   #flash-overlay.rainbow {
     background: conic-gradient(
@@ -570,6 +592,7 @@
   <span class="toast-emoji" id="toast-emoji"></span>
   <div class="toast-name" id="toast-name"></div>
   <div class="toast-layer" id="toast-layer"></div>
+  <button id="toast-share-btn" onclick="shareDiscovery()">🐦 Share</button>
 </div>
 <!-- 画面フラッシュ -->
 <div id="flash-overlay"></div>
@@ -581,7 +604,7 @@
     <p>No more merges available.<br>The grid has crystallized.</p>
     <div class="final-score" id="final-score">0</div>
     <span class="final-label">points</span>
-    <div class="final-disc" id="final-disc">0 / 20 elements</div>
+    <div class="final-disc" id="final-disc">0 / 30 elements</div>
     <br>
     <button class="btn-restart" onclick="initGame()">Play Again</button>
   </div>
@@ -1074,6 +1097,7 @@ let toastTimer = null;
 
 function showDiscoveryToast(elementId) {
   const elem = ELEMENTS[elementId];
+  lastDiscoveredId = elementId; // 共有対象を更新
   toastEmoji.textContent = elem.emoji;
   toastName.textContent = elem.label;
 
@@ -1222,6 +1246,33 @@ function setupTouchEvents() {
     }
     touchStartCell = null;
   }, { passive: false });
+}
+
+// =====================================================
+// 発見共有 — Web Share API (モバイル) / Twitter intent (PC)
+// 「この元素発見した！」をワンクリックでポストさせてバイラル拡散
+// =====================================================
+let lastDiscoveredId = null; // 共有対象の最新発見元素
+
+function shareDiscovery() {
+  if (!lastDiscoveredId) return;
+  const elem = ELEMENTS[lastDiscoveredId];
+  const discCount = Object.keys(discovered).length;
+  const total = Object.keys(ELEMENTS).length;
+  const layerLabel = elem.layer >= 4 ? '✨ ULTIMATE' : elem.layer === 3 ? '⚡ RARE' : `Layer ${elem.layer}`;
+  const text = `${elem.emoji} Discovered "${elem.label}"! ${layerLabel}\n🏆 Score: ${score.toLocaleString()} — ${discCount}/${total} elements found\n\n#PrimalFuse #GameJam`;
+  const url = 'https://yurukusa.itch.io/primal-fuse';
+
+  if (navigator.share) {
+    // モバイル: ネイティブ共有シート
+    navigator.share({ title: 'Primal Fuse — Element Discovery', text, url }).catch(() => {});
+  } else {
+    // PC: Xへのリンク
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text + '\n' + url)}`,
+      '_blank', 'noopener'
+    );
+  }
 }
 
 // =====================================================
