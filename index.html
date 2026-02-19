@@ -689,9 +689,10 @@
     opacity: 1;
   }
 
-  /* Hintボタン */
+  /* Hintボタン — モバイル推奨タッチターゲット44px確保 */
   #hint-btn {
-    padding: 4px 12px;
+    padding: 10px 16px;
+    min-height: 44px;
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: 6px;
     background: transparent;
@@ -701,6 +702,8 @@
     letter-spacing: 0.5px;
     cursor: pointer;
     transition: all 0.15s;
+    touch-action: manipulation; /* ダブルタップズームを防ぐ */
+    -webkit-tap-highlight-color: transparent;
   }
   #hint-btn:hover { border-color: var(--accent); color: var(--accent); }
   #hint-btn:disabled { opacity: 0.3; cursor: default; }
@@ -714,6 +717,21 @@
   @keyframes hint-pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255,224,130,0.5); }
     50%       { box-shadow: 0 0 0 6px rgba(255,224,130,0); }
+  }
+
+  /* ドラッグ中の指が乗っているセルのハイライト (touchmove) */
+  .cell.touch-hover {
+    border-color: rgba(255, 255, 255, 0.7) !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    transform: scale(1.04);
+    transition: transform 0.08s, border-color 0.08s;
+  }
+
+  /* ボタン全般のタッチ最適化 */
+  .btn-restart, .btn-shuffle {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
   }
 
   /* --- レスポンシブ --- */
@@ -1418,9 +1436,8 @@ function renderGrid() {
     }
   }
 
-  // タッチサポート（モバイル向け）
-  setupTouchEvents();
 }
+// タッチサポートはrenderGridではなく初期化時に一度だけセットアップする（下部エントリポイント参照）
 
 // セル単体の内容を更新（innerHTML全更新より高速）
 function renderCell(row, col) {
@@ -1511,10 +1528,25 @@ function shareVictory() {
 
 // =====================================================
 // タッチ操作（モバイル対応）
-// touchstartで選択、touchendで確定
+// touchstart→touchmove（ビジュアルフィードバック）→touchend（確定）
+// setupTouchEventsは初期化時に一度だけ呼ぶ。renderGrid()からは呼ばない。
 // =====================================================
+let _touchEventsInitialized = false; // 二重登録を防ぐフラグ
+
 function setupTouchEvents() {
+  if (_touchEventsInitialized) return; // 二重登録防止
+  _touchEventsInitialized = true;
+
   let touchStartCell = null;
+  let lastHoverCell = null; // touchmoveで最後にハイライトしたセル
+
+  // タッチ中のセルをクリアする共通関数
+  function clearTouchHover() {
+    if (lastHoverCell) {
+      lastHoverCell.classList.remove('touch-hover');
+      lastHoverCell = null;
+    }
+  }
 
   gridEl.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -1528,8 +1560,31 @@ function setupTouchEvents() {
     };
   }, { passive: false });
 
+  // touchmove: ドラッグ中に指の下のセルをハイライトしてスクロールを抑制
+  gridEl.addEventListener('touchmove', (e) => {
+    e.preventDefault(); // グリッド上でのスクロールを完全に抑制
+    if (!touchStartCell) return;
+
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cellEl = target?.closest('.cell');
+
+    clearTouchHover();
+    if (cellEl) {
+      // ドラッグ元以外のセルにホバーエフェクトを付ける
+      const hoverRow = parseInt(cellEl.dataset.row);
+      const hoverCol = parseInt(cellEl.dataset.col);
+      if (!(hoverRow === touchStartCell.row && hoverCol === touchStartCell.col)) {
+        cellEl.classList.add('touch-hover');
+        lastHoverCell = cellEl;
+      }
+    }
+  }, { passive: false });
+
   gridEl.addEventListener('touchend', (e) => {
     e.preventDefault();
+    clearTouchHover(); // ドロップ時にホバーをクリア
+
     const touch = e.changedTouches[0];
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
     const cellEl = target?.closest('.cell');
@@ -1550,6 +1605,12 @@ function setupTouchEvents() {
     }
     touchStartCell = null;
   }, { passive: false });
+
+  // グリッド外でのtouchcancelにも対応（電話着信などで中断された時）
+  gridEl.addEventListener('touchcancel', () => {
+    clearTouchHover();
+    touchStartCell = null;
+  });
 }
 
 // =====================================================
@@ -1680,6 +1741,7 @@ function maybeShowTutorial() {
 // エントリポイント
 // =====================================================
 initGame();
+setupTouchEvents(); // 一度だけ登録（renderGrid内には置かない）
 maybeShowTutorial();
 </script>
 </body>
