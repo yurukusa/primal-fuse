@@ -747,6 +747,7 @@
     .main-layout { gap: 12px; padding: 8px 12px; }
   }
 </style>
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 </head>
 <body>
 
@@ -922,6 +923,54 @@ let combo = 0;           // 連続合成コンボカウント
 let comboTimer = null;   // コンボ判定タイマー
 const COMBO_WINDOW = 1500; // ms以内で連続合成するとコンボになる
 
+// ============================================================
+// CrazyGames SDK v3 統合ブロック（ローカル/itch.io環境ではスキップ）
+// ============================================================
+let _crazySDK = null;
+
+async function _initCrazySDK() {
+    try {
+        await window.CrazyGames?.SDK?.init();
+        _crazySDK = window.CrazyGames?.SDK ?? null;
+        if (_crazySDK) console.log('[CrazyGames] SDK initialized');
+    } catch (e) {
+        // SDK未対応環境（ローカル/itch.io等）では無視して続行
+        console.log('[CrazyGames] SDK not available, continuing without ads');
+    }
+}
+
+function _gameplayStart() {
+    _crazySDK?.game?.gameplayStart?.();
+}
+
+function _gameplayStop() {
+    _crazySDK?.game?.gameplayStop?.();
+}
+
+async function _showMidgameAd() {
+    if (!_crazySDK) return;
+    try {
+        _gameplayStop();
+        await new Promise(resolve => {
+            _crazySDK.ad.requestAd('midgame', {
+                adFinished: resolve,
+                adError: resolve,       // エラー時も必ず解除
+                adStarted: () => {},
+            });
+        });
+    } catch (e) {
+        // 広告失敗時もゲームを止めない
+    }
+}
+
+function _happytime() {
+    _crazySDK?.game?.happytime?.();
+}
+
+// 起動時にSDK初期化（非同期、ゲーム起動をブロックしない）
+_initCrazySDK();
+// ============================================================
+
 // DOM参照
 const gridEl = document.getElementById('grid');
 const discCountEl = document.getElementById('disc-count');
@@ -979,6 +1028,7 @@ function initGame() {
   renderGrid();
   renderCompendium();
   updateScoreBar();
+  _gameplayStart(); // CrazyGames: ゲームプレイ開始を通知
 }
 
 // =====================================================
@@ -1210,6 +1260,7 @@ function isGameOver() {
 
 function triggerGameOver() {
   gameOver = true;
+  _showMidgameAd(); // CrazyGames: ミッドゲーム広告リクエスト（非同期、UI表示をブロックしない）
   const total = Object.keys(ELEMENTS).length;
   const discCount = Object.keys(discovered).length;
   finalScoreEl.textContent = score.toLocaleString();
@@ -1238,6 +1289,7 @@ function shuffleGrid() {
   // ゲームオーバーモーダルを閉じてグリッドをリセット（スコア・図鑑は保持）
   gameoverModal.classList.remove('show');
   gameOver = false;
+  _gameplayStart(); // CrazyGames: シャッフル後のゲーム再開を通知
   score = Math.max(0, score - 500); // -500pts ペナルティ
 
   // グリッド全体をLayer1要素でリフレッシュ（進行状況を打破）
@@ -1504,6 +1556,7 @@ function updateScoreBar() {
 }
 
 function triggerVictory() {
+  _happytime(); // CrazyGames: Compendium完成！ハッピータイム演出
   document.getElementById('victory-score').textContent = score.toLocaleString();
   document.getElementById('victory-modal').classList.add('show');
   // レインボーフラッシュ×3
