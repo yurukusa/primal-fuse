@@ -841,11 +841,14 @@ function initGame() {
   }
 
   // グリッドを基本元素でランダム埋め（25%程度は空白にして操作余地を作る）
+  // 全セルをLayer1要素で埋める（空セルは詰まりの原因になるため禁止）
+  // 8%の確率でLayer2を混ぜて序盤の多様性を確保
+  const RARE_SPAWNS_INIT = ['lava', 'storm', 'ice', 'sand'];
   grid = Array.from({ length: GRID_SIZE }, () =>
     Array.from({ length: GRID_SIZE }, () => {
-      return Math.random() < 0.75
-        ? BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)]
-        : null;
+      return Math.random() < 0.08
+        ? RARE_SPAWNS_INIT[Math.floor(Math.random() * RARE_SPAWNS_INIT.length)]
+        : BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)];
     })
   );
 
