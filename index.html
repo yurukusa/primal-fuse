@@ -313,6 +313,39 @@
     display: flex;
   }
 
+  #victory-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 201;
+    align-items: center;
+    justify-content: center;
+  }
+  #victory-modal.show { display: flex; }
+
+  .victory-box {
+    border-color: transparent;
+    border-image: linear-gradient(135deg,#ff6b6b,#ffd700,#51e980,#4ecdc4,#a855f7) 1;
+    box-shadow: 0 0 80px rgba(255,215,0,0.4);
+    animation: victory-glow 2s ease-in-out infinite alternate;
+  }
+  @keyframes victory-glow {
+    from { box-shadow: 0 0 40px rgba(255,215,0,0.3); }
+    to   { box-shadow: 0 0 100px rgba(255,107,107,0.5); }
+  }
+  .victory-crown {
+    font-size: 64px;
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: crown-spin 3s linear infinite;
+  }
+  @keyframes crown-spin {
+    0%   { transform: rotate(-5deg) scale(1); }
+    50%  { transform: rotate(5deg) scale(1.1); }
+    100% { transform: rotate(-5deg) scale(1); }
+  }
+
   .modal-box {
     background: var(--card);
     border: 2px solid var(--accent);
@@ -640,6 +673,20 @@
 <!-- 画面フラッシュ -->
 <div id="flash-overlay"></div>
 
+<!-- VICTORYモーダル（全30元素発見） -->
+<div id="victory-modal">
+  <div class="modal-box victory-box">
+    <div class="victory-crown">✨</div>
+    <h2>COMPENDIUM COMPLETE!</h2>
+    <p>You discovered all 30 elements.<br>The Primal Fuse is mastered!</p>
+    <div class="final-score" id="victory-score">0</div>
+    <span class="final-label">points</span>
+    <br><br>
+    <button class="btn-restart" onclick="shareVictory()">🐦 Share Victory</button>
+    <button class="btn-shuffle" onclick="document.getElementById('victory-modal').classList.remove('show')">Keep Playing</button>
+  </div>
+</div>
+
 <!-- ゲームオーバーモーダル -->
 <div id="gameover-modal">
   <div class="modal-box">
@@ -775,11 +822,14 @@ const finalDiscEl = document.getElementById('final-disc');
 // =====================================================
 function initGame() {
   gameOver = false;
+  victoryShown = false;
   selectedCell = null;
   droppableCells = [];
   score = 0;
   combo = 0;
   if (comboTimer) { clearTimeout(comboTimer); comboTimer = null; }
+  document.getElementById('gameover-modal').classList.remove('show');
+  document.getElementById('victory-modal').classList.remove('show');
 
   // localStorageから図鑑を復元（セッション間でコンプリートを保持）
   try {
@@ -1261,6 +1311,8 @@ function renderCompendium() {
   });
 }
 
+let victoryShown = false; // 重複演出防止
+
 function updateScoreBar() {
   const total = Object.keys(ELEMENTS).length;
   const count = Object.keys(discovered).length;
@@ -1270,6 +1322,35 @@ function updateScoreBar() {
   scoreEl.classList.remove('pop');
   void scoreEl.offsetWidth;
   scoreEl.classList.add('pop');
+
+  // 全発見でVICTORY演出（1回のみ）
+  if (!victoryShown && count >= total) {
+    victoryShown = true;
+    setTimeout(triggerVictory, 800);
+  }
+}
+
+function triggerVictory() {
+  document.getElementById('victory-score').textContent = score.toLocaleString();
+  document.getElementById('victory-modal').classList.add('show');
+  // レインボーフラッシュ×3
+  let flashes = 0;
+  const flash = setInterval(() => {
+    rainbowFlash();
+    flashes++;
+    if (flashes >= 3) clearInterval(flash);
+  }, 600);
+}
+
+function shareVictory() {
+  const total = Object.keys(ELEMENTS).length;
+  const text = `🌌 I discovered ALL ${total} elements in Primal Fuse!\n🏆 Score: ${score.toLocaleString()}\n\nCan you crack the Primal Fuse? #PrimalFuse #GameJam #puzzle`;
+  const url = 'https://yurukusa.github.io/primal-fuse/';
+  if (navigator.share) {
+    navigator.share({ title: 'Primal Fuse — COMPLETE!', text, url }).catch(() => {});
+  } else {
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + '\n' + url)}`, '_blank', 'noopener');
+  }
 }
 
 // =====================================================
