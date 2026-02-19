@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Primal Fuse</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --card-hover: #1e2f5e;
+    --accent: #ffd700;
+    --text: #e0e0e0;
+    --text-muted: #888;
+    --border: #2a2a4a;
+    --cell-size: 72px;
+    --cell-gap: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+
+  header {
+    padding: 16px 20px 8px;
+    text-align: center;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+  }
+
+  h1 span {
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .score-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: center;
+    padding: 8px 20px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .score-bar .discovery-count {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .main-layout {
+    display: flex;
+    gap: 20px;
+    padding: 10px 20px 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  /* --- グリッド --- */
+  .grid-wrapper {
+    position: relative;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(6, var(--cell-size));
+    grid-template-rows: repeat(6, var(--cell-size));
+    gap: var(--cell-gap);
+    background: var(--card);
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    touch-action: none;
+  }
+
+  .cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    border-radius: 10px;
+    background: var(--bg);
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s, background 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cell .emoji {
+    font-size: 28px;
+    line-height: 1;
+    transition: transform 0.15s;
+    pointer-events: none;
+  }
+
+  .cell .label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-top: 2px;
+    pointer-events: none;
+  }
+
+  .cell.empty {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  /* 選択中の強調 */
+  .cell.selected {
+    border-color: var(--accent);
+    background: rgba(255, 215, 0, 0.08);
+    transform: scale(1.06);
+    z-index: 2;
+  }
+
+  /* ドロップ可能なハイライト */
+  .cell.droppable {
+    border-color: #6cf;
+    background: rgba(100, 200, 255, 0.1);
+    animation: pulse-droppable 0.8s ease-in-out infinite;
+  }
+
+  @keyframes pulse-droppable {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(100, 200, 255, 0.3); }
+    50%       { box-shadow: 0 0 0 6px rgba(100, 200, 255, 0); }
+  }
+
+  /* マージアニメーション: 0.8→1.2→1.0 */
+  @keyframes merge-pop {
+    0%   { transform: scale(0.8); }
+    50%  { transform: scale(1.25); }
+    100% { transform: scale(1.0); }
+  }
+
+  .cell.merge-anim {
+    animation: merge-pop 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+  }
+
+  /* 落下アニメーション */
+  @keyframes fall-in {
+    0%   { opacity: 0; transform: translateY(-20px) scale(0.7); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .cell.fall-anim {
+    animation: fall-in 0.3s ease-out forwards;
+  }
+
+  /* --- 図鑑サイドバー --- */
+  .compendium {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    min-width: 180px;
+    max-width: 200px;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  .compendium h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compendium-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .comp-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--bg);
+    transition: background 0.2s;
+    font-size: 12px;
+  }
+
+  .comp-item.discovered {
+    background: rgba(255, 215, 0, 0.06);
+  }
+
+  .comp-item .comp-emoji {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .comp-item .comp-name {
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+
+  .comp-item.undiscovered .comp-emoji,
+  .comp-item.undiscovered .comp-name {
+    opacity: 0.15;
+  }
+
+  .comp-item .comp-badge {
+    margin-left: auto;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .comp-badge.new {
+    background: var(--accent);
+    color: #1a1a2e;
+  }
+
+  /* --- 新発見演出 --- */
+  #discovery-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: rgba(26, 26, 46, 0.95);
+    border: 2px solid var(--accent);
+    border-radius: 16px;
+    padding: 20px 32px;
+    text-align: center;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 0 40px rgba(255, 215, 0, 0.3);
+    transition: transform 0.25s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  #discovery-toast.show {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  #discovery-toast .toast-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  #discovery-toast .toast-emoji {
+    font-size: 48px;
+    display: block;
+    margin: 8px 0;
+  }
+
+  #discovery-toast .toast-name {
+    font-size: 20px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* --- ゲームオーバーモーダル --- */
+  #gameover-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #gameover-modal.show {
+    display: flex;
+  }
+
+  .modal-box {
+    background: var(--card);
+    border: 2px solid var(--accent);
+    border-radius: 20px;
+    padding: 36px 48px;
+    text-align: center;
+    max-width: 360px;
+    box-shadow: 0 0 60px rgba(255, 215, 0, 0.2);
+  }
+
+  .modal-box h2 {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--accent);
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+  }
+
+  .modal-box p {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .modal-box .final-score {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .modal-box .final-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    display: block;
+  }
+
+  .btn-restart {
+    background: var(--accent);
+    color: #1a1a2e;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 32px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-transform: uppercase;
+  }
+
+  .btn-restart:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+  }
+
+  /* --- ヒントテキスト --- */
+  .hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 0 20px 12px;
+  }
+
+  /* --- レスポンシブ --- */
+  @media (max-width: 600px) {
+    :root {
+      --cell-size: 52px;
+      --cell-gap: 4px;
+    }
+    .cell .emoji { font-size: 20px; }
+    .cell .label { font-size: 7px; }
+    h1 { font-size: 22px; }
+    .compendium { max-width: 100%; min-width: unset; width: 100%; }
+    .main-layout { gap: 12px; padding: 8px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PRIMAL FUSE <span>element merge puzzle</span></h1>
+</header>
+
+<div class="score-bar">
+  <span>Discovered:</span>
+  <span class="discovery-count" id="disc-count">0 / 10</span>
+  <span>elements</span>
+</div>
+
+<p class="hint">Click an element, then click an adjacent same-type to merge</p>
+
+<div class="main-layout">
+  <div class="grid-wrapper">
+    <div id="grid"></div>
+  </div>
+
+  <div class="compendium">
+    <h2>Compendium</h2>
+    <div class="compendium-list" id="compendium-list"></div>
+  </div>
+</div>
+
+<!-- 新発見演出 -->
+<div id="discovery-toast">
+  <div class="toast-label">NEW DISCOVERY!</div>
+  <span class="toast-emoji" id="toast-emoji"></span>
+  <div class="toast-name" id="toast-name"></div>
+</div>
+
+<!-- ゲームオーバーモーダル -->
+<div id="gameover-modal">
+  <div class="modal-box">
+    <h2>GAME OVER</h2>
+    <p>No more merges available.<br>The grid has crystallized.</p>
+    <div class="final-score" id="final-score">0</div>
+    <span class="final-label">elements discovered</span>
+    <br>
+    <button class="btn-restart" onclick="initGame()">Play Again</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// =====================================================
+// 元素定義
+// 合成ルールは「出力IDをキー」ではなく「入力ペアをキー」で管理する。
+// これにより同じ元素の組み合わせが別の結果になることを防ぐ。
+// =====================================================
+const ELEMENTS = {
+  fire:  { id: 'fire',  emoji: '🔥', label: 'Fire',  color: '#e94560', layer: 1 },
+  water: { id: 'water', emoji: '💧', label: 'Water', color: '#4fc3f7', layer: 1 },
+  earth: { id: 'earth', emoji: '🌍', label: 'Earth', color: '#8bc34a', layer: 1 },
+  wind:  { id: 'wind',  emoji: '💨', label: 'Wind',  color: '#b0bec5', layer: 1 },
+
+  lava:  { id: 'lava',  emoji: '🌋', label: 'Lava',  color: '#ff6f00', layer: 2 },
+  ice:   { id: 'ice',   emoji: '❄️', label: 'Ice',   color: '#80deea', layer: 2 },
+  sand:  { id: 'sand',  emoji: '🏜️', label: 'Sand',  color: '#f9a825', layer: 2 },
+  storm: { id: 'storm', emoji: '⛈️', label: 'Storm', color: '#7e57c2', layer: 2 },
+  steam: { id: 'steam', emoji: '💨', label: 'Steam', color: '#b2dfdb', layer: 2 },
+  dust:  { id: 'dust',  emoji: '🌀', label: 'Dust',  color: '#a5d6a7', layer: 2 },
+};
+
+// steam と wind が同じ絵文字なのでラベルで区別。
+// 合成ルール: ソートして正規化することで A+B = B+A を保証する
+const MERGE_RULES = {
+  'fire+fire':   'lava',
+  'water+water': 'ice',
+  'earth+earth': 'sand',
+  'wind+wind':   'storm',
+  'fire+water':  'steam',
+  'earth+wind':  'dust',
+};
+
+// 初期配置で出現する基本元素のみ（Layer1）
+const BASE_ELEMENTS = ['fire', 'water', 'earth', 'wind'];
+
+const GRID_SIZE = 6;
+
+// ゲーム状態
+let grid = [];          // grid[row][col] = elementId | null
+let discovered = {};    // { elementId: true }
+let selectedCell = null; // { row, col }
+let droppableCells = []; // ドロップ可能なセル
+let gameOver = false;
+
+// DOM参照
+const gridEl = document.getElementById('grid');
+const discCountEl = document.getElementById('disc-count');
+const compendiumEl = document.getElementById('compendium-list');
+const toast = document.getElementById('discovery-toast');
+const toastEmoji = document.getElementById('toast-emoji');
+const toastName = document.getElementById('toast-name');
+const gameoverModal = document.getElementById('gameover-modal');
+const finalScoreEl = document.getElementById('final-score');
+
+// =====================================================
+// ゲーム初期化
+// =====================================================
+function initGame() {
+  gameOver = false;
+  selectedCell = null;
+  droppableCells = [];
+
+  // localStorageから図鑑を復元（セッション間でコンプリートを保持）
+  try {
+    const saved = localStorage.getItem('primalfuse_discovered');
+    discovered = saved ? JSON.parse(saved) : {};
+  } catch {
+    discovered = {};
+  }
+
+  // グリッドを基本元素でランダム埋め（30%程度は空白にして操作余地を作る）
+  grid = Array.from({ length: GRID_SIZE }, () =>
+    Array.from({ length: GRID_SIZE }, () => {
+      // 約75%の確率で元素を配置、25%は空
+      return Math.random() < 0.75
+        ? BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)]
+        : null;
+    })
+  );
+
+  // 基本元素を図鑑に自動登録（プレイヤーが最初から知っているものとして扱う）
+  BASE_ELEMENTS.forEach(id => { discovered[id] = true; });
+  saveDiscovered();
+
+  gameoverModal.classList.remove('show');
+  renderGrid();
+  renderCompendium();
+  updateScoreBar();
+}
+
+// =====================================================
+// 合成ルールの参照
+// ソートして "a+b" 形式のキーを生成することで順序非依存にする
+// =====================================================
+function getMergeResult(idA, idB) {
+  const key = [idA, idB].sort().join('+');
+  return MERGE_RULES[key] || null;
+}
+
+// =====================================================
+// セル操作
+// =====================================================
+function getCellEl(row, col) {
+  // グリッドDOMは1次元なので row*GRID_SIZE+col で取得
+  return gridEl.children[row * GRID_SIZE + col];
+}
+
+function selectCell(row, col) {
+  // 同じセルを再クリック → 選択解除
+  if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+    clearSelection();
+    return;
+  }
+
+  const elemId = grid[row][col];
+  if (!elemId) return; // 空セルは選択不可
+
+  clearSelection();
+
+  selectedCell = { row, col };
+  getCellEl(row, col).classList.add('selected');
+
+  // ドロップ可能な隣接セルを計算して強調
+  droppableCells = getAdjacentMergeable(row, col, elemId);
+  droppableCells.forEach(({ r, c }) => {
+    getCellEl(r, c).classList.add('droppable');
+  });
+}
+
+// 隣接する同種セル（マージ可能な対象）を返す
+function getAdjacentMergeable(row, col, elemId) {
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+  return dirs
+    .map(([dr, dc]) => ({ r: row + dr, c: col + dc }))
+    .filter(({ r, c }) =>
+      r >= 0 && r < GRID_SIZE &&
+      c >= 0 && c < GRID_SIZE &&
+      grid[r][c] === elemId
+    );
+}
+
+function clearSelection() {
+  if (selectedCell) {
+    getCellEl(selectedCell.row, selectedCell.col).classList.remove('selected');
+    selectedCell = null;
+  }
+  droppableCells.forEach(({ r, c }) => {
+    getCellEl(r, c).classList.remove('droppable');
+  });
+  droppableCells = [];
+}
+
+// =====================================================
+// マージ実行
+// mergeへの侵入口は clickCell のみ
+// =====================================================
+function clickCell(row, col) {
+  if (gameOver) return;
+  const elemId = grid[row][col];
+
+  if (!selectedCell) {
+    // まだ選択なし → このセルを選択
+    if (elemId) selectCell(row, col);
+    return;
+  }
+
+  // 選択済み状態でクリック
+  const isDroppable = droppableCells.some(({ r, c }) => r === row && c === col);
+
+  if (isDroppable) {
+    // マージ実行
+    mergeElements(selectedCell.row, selectedCell.col, row, col);
+  } else {
+    // 別のセルへ選択変更（またはキャンセル）
+    clearSelection();
+    if (elemId && !(row === selectedCell?.row && col === selectedCell?.col)) {
+      selectCell(row, col);
+    }
+  }
+}
+
+// =====================================================
+// 合成処理
+// 新元素を「ドロップ先（col側）」に配置し、「元のセル（selected側）」を空にする
+// 空になったスロットは上から補充する
+// =====================================================
+function mergeElements(fromRow, fromCol, toRow, toCol) {
+  const idA = grid[fromRow][fromCol];
+  const idB = grid[toRow][toCol];
+  const resultId = getMergeResult(idA, idB);
+
+  if (!resultId) {
+    // 合成ルールなし（定義漏れ）→ エラーとして無視
+    clearSelection();
+    return;
+  }
+
+  clearSelection();
+
+  // グリッド更新
+  grid[toRow][toCol] = resultId;
+  grid[fromRow][fromCol] = null;
+
+  // 図鑑登録チェック
+  const isNew = !discovered[resultId];
+  if (isNew) {
+    discovered[resultId] = true;
+    saveDiscovered();
+    showDiscoveryToast(resultId);
+  }
+
+  // マージアニメーション
+  const targetCellEl = getCellEl(toRow, toCol);
+  renderCell(toRow, toCol);
+  targetCellEl.classList.add('merge-anim');
+  targetCellEl.addEventListener('animationend', () => {
+    targetCellEl.classList.remove('merge-anim');
+  }, { once: true });
+
+  // 空になったセルをクリア表示
+  renderCell(fromRow, fromCol);
+
+  // 上から補充（重力落下）
+  replenishColumn(fromCol);
+
+  updateScoreBar();
+  renderCompendium();
+
+  // ゲームオーバー判定（補充後に少し遅延して確認）
+  setTimeout(() => {
+    if (isGameOver()) triggerGameOver();
+  }, 600);
+}
+
+// =====================================================
+// 列補充（重力）: 空になったセルに上から新元素を落とす
+// 2048ライクに「空セルがあれば上から新要素を補充」する
+// =====================================================
+function replenishColumn(col) {
+  // 上→下の順でnullを探し、上から詰める
+  const column = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    column.push(grid[r][col]);
+  }
+
+  // null以外を先に集め、足りない分をランダム補充
+  const filled = column.filter(v => v !== null);
+  while (filled.length < GRID_SIZE) {
+    // Layer2元素はまれに（5%）出現し、基本は基本元素を補充する
+    // これにより難易度が自然に上がりすぎない
+    filled.unshift(
+      Math.random() < 0.05
+        ? 'lava' // 稀にLayer2
+        : BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)]
+    );
+  }
+
+  for (let r = 0; r < GRID_SIZE; r++) {
+    const old = grid[r][col];
+    grid[r][col] = filled[r];
+    if (old !== filled[r]) {
+      // 新しく降ってきたセルに落下アニメーション
+      const cellEl = getCellEl(r, col);
+      renderCell(r, col);
+      cellEl.classList.add('fall-anim');
+      cellEl.addEventListener('animationend', () => {
+        cellEl.classList.remove('fall-anim');
+      }, { once: true });
+    }
+  }
+}
+
+// =====================================================
+// ゲームオーバー判定
+// 「同種の隣接ペアが全くない」= マージ不可能
+// 実装を簡潔にするため全セルを走査してペアを探す
+// =====================================================
+function isGameOver() {
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const id = grid[r][c];
+      if (!id) continue;
+      // 右と下の隣接だけチェックすれば全ペアを重複なく網羅できる
+      if (c + 1 < GRID_SIZE && grid[r][c+1] === id) return false;
+      if (r + 1 < GRID_SIZE && grid[r+1][c] === id) return false;
+    }
+  }
+  return true; // マージ可能ペアがゼロ
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  const count = Object.keys(discovered).filter(id => !BASE_ELEMENTS.includes(id)).length;
+  finalScoreEl.textContent = `${Object.keys(discovered).length} / 10`;
+  gameoverModal.classList.add('show');
+}
+
+// =====================================================
+// 新発見演出
+// =====================================================
+let toastTimer = null;
+
+function showDiscoveryToast(elementId) {
+  const elem = ELEMENTS[elementId];
+  toastEmoji.textContent = elem.emoji;
+  toastName.textContent = elem.label;
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.classList.add('show');
+
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+    toastTimer = null;
+  }, 1800);
+}
+
+// =====================================================
+// レンダリング
+// =====================================================
+function renderGrid() {
+  gridEl.innerHTML = '';
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const cellEl = document.createElement('div');
+      cellEl.className = 'cell';
+      cellEl.dataset.row = r;
+      cellEl.dataset.col = c;
+
+      // クリックイベント
+      cellEl.addEventListener('click', () => clickCell(r, c));
+
+      gridEl.appendChild(cellEl);
+      renderCell(r, c); // 内容を描画
+    }
+  }
+
+  // タッチサポート（モバイル向け）
+  setupTouchEvents();
+}
+
+// セル単体の内容を更新（innerHTML全更新より高速）
+function renderCell(row, col) {
+  const cellEl = getCellEl(row, col);
+  const elemId = grid[row][col];
+
+  // 既存の選択/ドロップ状態クラスは保持しつつ内容を更新
+  cellEl.classList.remove('merge-anim', 'fall-anim');
+
+  if (!elemId) {
+    cellEl.classList.add('empty');
+    cellEl.innerHTML = '';
+    cellEl.style.borderColor = '';
+    cellEl.style.background = '';
+    return;
+  }
+
+  cellEl.classList.remove('empty');
+  const elem = ELEMENTS[elemId];
+  cellEl.innerHTML = `
+    <span class="emoji">${elem.emoji}</span>
+    <span class="label" style="color:${elem.color}">${elem.label}</span>
+  `;
+  // ボーダー色で元素の種類を示す（選択中は上書きされる）
+  cellEl.style.borderColor = elem.color + '55'; // 薄め
+  cellEl.style.background = elem.color + '18';  // さらに薄め
+}
+
+function renderCompendium() {
+  compendiumEl.innerHTML = '';
+  const allIds = Object.keys(ELEMENTS);
+
+  allIds.forEach(id => {
+    const elem = ELEMENTS[id];
+    const isDisc = !!discovered[id];
+    const item = document.createElement('div');
+    item.className = `comp-item ${isDisc ? 'discovered' : 'undiscovered'}`;
+
+    item.innerHTML = `
+      <span class="comp-emoji">${elem.emoji}</span>
+      <span class="comp-name" style="${isDisc ? `color:${elem.color}` : ''}">${isDisc ? elem.label : '???'}</span>
+    `;
+    compendiumEl.appendChild(item);
+  });
+}
+
+function updateScoreBar() {
+  const total = Object.keys(ELEMENTS).length;
+  const count = Object.keys(discovered).length;
+  discCountEl.textContent = `${count} / ${total}`;
+}
+
+// =====================================================
+// タッチ操作（モバイル対応）
+// touchstartで選択、touchendで確定
+// =====================================================
+function setupTouchEvents() {
+  let touchStartCell = null;
+
+  gridEl.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cellEl = target?.closest('.cell');
+    if (!cellEl) return;
+    touchStartCell = {
+      row: parseInt(cellEl.dataset.row),
+      col: parseInt(cellEl.dataset.col),
+    };
+  }, { passive: false });
+
+  gridEl.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cellEl = target?.closest('.cell');
+    if (!cellEl || !touchStartCell) { touchStartCell = null; return; }
+
+    const endRow = parseInt(cellEl.dataset.row);
+    const endCol = parseInt(cellEl.dataset.col);
+
+    if (touchStartCell.row === endRow && touchStartCell.col === endCol) {
+      // 同セルタップ = クリックと同等
+      clickCell(endRow, endCol);
+    } else {
+      // 別セルへのスワイプ: 開始セルを選択→終了セルにドロップ
+      if (!selectedCell) {
+        selectCell(touchStartCell.row, touchStartCell.col);
+      }
+      clickCell(endRow, endCol);
+    }
+    touchStartCell = null;
+  }, { passive: false });
+}
+
+// =====================================================
+// localStorageへの図鑑保存
+// JSON.stringifyが失敗する環境（プライベートブラウジング等）に備えてtry/catch
+// =====================================================
+function saveDiscovered() {
+  try {
+    localStorage.setItem('primalfuse_discovered', JSON.stringify(discovered));
+  } catch {
+    // localStorageが使えなくても動作は継続する
+  }
+}
+
+// =====================================================
+// エントリポイント
+// =====================================================
+initGame();
+</script>
+</body>
+</html>
