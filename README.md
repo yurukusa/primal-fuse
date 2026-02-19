@@ -15,6 +15,9 @@ Built with Claude Code for the [AI Browser Game Jam 2026](https://itch.io/jam/ai
 3. **Discover** all 30 elements across 4 layers to complete the Compendium
 4. **Share** your rarest discoveries with one click (Layer 4 ULTIMATE elements!)
 
+**Stuck?** Press 💡 **Hint** to see a valid merge pair highlighted in gold.
+**Dead end?** The Shuffle button (–500 pts) refreshes the grid without losing your Compendium progress.
+
 ---
 
 ## Element Layers
@@ -39,11 +42,25 @@ Built with Claude Code for the [AI Browser Game Jam 2026](https://itch.io/jam/ai
 
 ---
 
+## Features
+
+- 🔥 30 elements across 4 discovery layers
+- 🔀 26 unique merge recipes (same-type AND cross-type merges)
+- 💡 Hint button — highlights a valid merge pair (3-second cooldown)
+- ✨ Layer 4 rainbow flash + VICTORY screen when Compendium is complete
+- 🐦 One-click discovery sharing to X/Twitter
+- 🔀 Shuffle recovery — break deadlocks without losing your progress
+- 📱 Mobile-friendly layout
+
+---
+
 ## Tech
 
-Single HTML file (~1,300 lines), zero dependencies. Runs in any browser.
+Single HTML file (~1,400 lines), zero dependencies. Runs in any browser.
 
 ```
-index.html    ~1,300 lines   Full game (HTML + CSS + JS, all-in-one)
+index.html    ~1,400 lines   Full game (HTML + CSS + JS, all-in-one)
 thumbnail.png              Cover art for itch.io
 ```
+
+100% built with Claude Code (claude-sonnet-4-6).
