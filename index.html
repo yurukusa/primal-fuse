@@ -381,6 +381,113 @@
     padding: 0 20px 12px;
   }
 
+  /* --- スコアバー --- */
+  .score-val {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 16px;
+    transition: transform 0.15s;
+  }
+
+  .score-val.pop {
+    animation: score-pop 0.3s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  @keyframes score-pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+
+  .score-sep { color: var(--text-muted); margin: 0 2px; }
+
+  /* コンボ表示 */
+  #combo-display {
+    font-weight: 900;
+    font-size: 15px;
+    color: #ff6f00;
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px rgba(255,111,0,0.6);
+  }
+
+  .combo-hidden { display: none; }
+  .combo-show   { display: inline; }
+
+  @keyframes combo-bounce {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.5); }
+    100% { transform: scale(1); }
+  }
+
+  /* --- パーティクル --- */
+  .particle {
+    position: fixed;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 500;
+    animation: particle-fly 0.7s ease-out forwards;
+  }
+
+  @keyframes particle-fly {
+    0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+  }
+
+  /* --- グリッドシェイク (合成失敗) --- */
+  @keyframes grid-shake {
+    0%, 100% { transform: translateX(0); }
+    15%  { transform: translateX(-6px); }
+    30%  { transform: translateX(5px); }
+    45%  { transform: translateX(-4px); }
+    60%  { transform: translateX(3px); }
+    75%  { transform: translateX(-2px); }
+  }
+
+  .grid-shake {
+    animation: grid-shake 0.35s ease-in-out;
+  }
+
+  /* --- 画面フラッシュ (レア発見) --- */
+  #flash-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 215, 0, 0.18);
+    pointer-events: none;
+    z-index: 300;
+    opacity: 0;
+    transition: opacity 0.08s;
+  }
+
+  #flash-overlay.active {
+    opacity: 1;
+  }
+
+  /* Layer3発見トースト — より豪華に */
+  #discovery-toast.layer3 {
+    border-color: #ab47bc;
+    box-shadow: 0 0 60px rgba(171, 71, 188, 0.5);
+  }
+
+  .toast-layer {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .toast-layer.rare { color: #ab47bc; }
+
+  /* ゲームオーバーのdiscovery情報 */
+  .final-disc {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-bottom: 20px;
+  }
+
   /* --- レスポンシブ --- */
   @media (max-width: 600px) {
     :root {
@@ -402,9 +509,12 @@
 </header>
 
 <div class="score-bar">
-  <span>Discovered:</span>
-  <span class="discovery-count" id="disc-count">0 / 10</span>
-  <span>elements</span>
+  <span>Score:</span>
+  <span class="score-val" id="score-val">0</span>
+  <span class="score-sep">·</span>
+  <span>Found:</span>
+  <span class="discovery-count" id="disc-count">0 / 20</span>
+  <span id="combo-display" class="combo-hidden"></span>
 </div>
 
 <p class="hint">Click an element, then click an adjacent same-type to merge</p>
@@ -425,7 +535,10 @@
   <div class="toast-label">NEW DISCOVERY!</div>
   <span class="toast-emoji" id="toast-emoji"></span>
   <div class="toast-name" id="toast-name"></div>
+  <div class="toast-layer" id="toast-layer"></div>
 </div>
+<!-- 画面フラッシュ -->
+<div id="flash-overlay"></div>
 
 <!-- ゲームオーバーモーダル -->
 <div id="gameover-modal">
@@ -433,7 +546,8 @@
     <h2>GAME OVER</h2>
     <p>No more merges available.<br>The grid has crystallized.</p>
     <div class="final-score" id="final-score">0</div>
-    <span class="final-label">elements discovered</span>
+    <span class="final-label">points</span>
+    <div class="final-disc" id="final-disc">0 / 20 elements</div>
     <br>
     <button class="btn-restart" onclick="initGame()">Play Again</button>
   </div>
@@ -443,33 +557,60 @@
 'use strict';
 
 // =====================================================
-// 元素定義
+// 元素定義 (20種)
 // 合成ルールは「出力IDをキー」ではなく「入力ペアをキー」で管理する。
 // これにより同じ元素の組み合わせが別の結果になることを防ぐ。
 // =====================================================
 const ELEMENTS = {
-  fire:  { id: 'fire',  emoji: '🔥', label: 'Fire',  color: '#e94560', layer: 1 },
-  water: { id: 'water', emoji: '💧', label: 'Water', color: '#4fc3f7', layer: 1 },
-  earth: { id: 'earth', emoji: '🌍', label: 'Earth', color: '#8bc34a', layer: 1 },
-  wind:  { id: 'wind',  emoji: '💨', label: 'Wind',  color: '#b0bec5', layer: 1 },
+  // Layer 1 — 基本元素 (初期配置のみ)
+  fire:      { id: 'fire',      emoji: '🔥', label: 'Fire',      color: '#e94560', layer: 1 },
+  water:     { id: 'water',     emoji: '💧', label: 'Water',     color: '#4fc3f7', layer: 1 },
+  earth:     { id: 'earth',     emoji: '🌍', label: 'Earth',     color: '#8bc34a', layer: 1 },
+  wind:      { id: 'wind',      emoji: '💨', label: 'Wind',      color: '#b0bec5', layer: 1 },
 
-  lava:  { id: 'lava',  emoji: '🌋', label: 'Lava',  color: '#ff6f00', layer: 2 },
-  ice:   { id: 'ice',   emoji: '❄️', label: 'Ice',   color: '#80deea', layer: 2 },
-  sand:  { id: 'sand',  emoji: '🏜️', label: 'Sand',  color: '#f9a825', layer: 2 },
-  storm: { id: 'storm', emoji: '⛈️', label: 'Storm', color: '#7e57c2', layer: 2 },
-  steam: { id: 'steam', emoji: '💨', label: 'Steam', color: '#b2dfdb', layer: 2 },
-  dust:  { id: 'dust',  emoji: '🌀', label: 'Dust',  color: '#a5d6a7', layer: 2 },
+  // Layer 2 — 第1合成 (同種 × 4 + 異種 × 6)
+  lava:      { id: 'lava',      emoji: '🌋', label: 'Lava',      color: '#ff6f00', layer: 2 },
+  ice:       { id: 'ice',       emoji: '❄️', label: 'Ice',       color: '#80deea', layer: 2 },
+  sand:      { id: 'sand',      emoji: '🏜️', label: 'Sand',      color: '#f9a825', layer: 2 },
+  storm:     { id: 'storm',     emoji: '⛈️', label: 'Storm',     color: '#7e57c2', layer: 2 },
+  steam:     { id: 'steam',     emoji: '🌫️', label: 'Steam',     color: '#b2dfdb', layer: 2 },
+  lightning: { id: 'lightning', emoji: '⚡', label: 'Lightning', color: '#ffd600', layer: 2 },
+  ash:       { id: 'ash',       emoji: '🌑', label: 'Ash',       color: '#546e7a', layer: 2 },
+  mud:       { id: 'mud',       emoji: '🟤', label: 'Mud',       color: '#795548', layer: 2 },
+  mist:      { id: 'mist',      emoji: '🌁', label: 'Mist',      color: '#90a4ae', layer: 2 },
+  dust:      { id: 'dust',      emoji: '🌀', label: 'Dust',      color: '#bcaaa4', layer: 2 },
+
+  // Layer 3 — 第2合成 (レア発見)
+  rock:      { id: 'rock',      emoji: '🪨', label: 'Rock',      color: '#9e9e9e', layer: 3 },
+  cloud:     { id: 'cloud',     emoji: '☁️', label: 'Cloud',     color: '#e0e0e0', layer: 3 },
+  oasis:     { id: 'oasis',     emoji: '🌴', label: 'Oasis',     color: '#4caf50', layer: 3 },
+  flood:     { id: 'flood',     emoji: '🌊', label: 'Flood',     color: '#1565c0', layer: 3 },
+  clay:      { id: 'clay',      emoji: '🧱', label: 'Clay',      color: '#bf360c', layer: 3 },
+  plasma:    { id: 'plasma',    emoji: '🔮', label: 'Plasma',    color: '#ab47bc', layer: 3 },
 };
 
-// steam と wind が同じ絵文字なのでラベルで区別。
 // 合成ルール: ソートして正規化することで A+B = B+A を保証する
+// Layer 3は合成物同士・合成物と基本元素の組み合わせ
 const MERGE_RULES = {
+  // Layer 2 — 同種合成 (100pts each)
   'fire+fire':   'lava',
   'water+water': 'ice',
   'earth+earth': 'sand',
   'wind+wind':   'storm',
+  // Layer 2 — 異種合成 (100pts each)
   'fire+water':  'steam',
+  'fire+wind':   'lightning',
+  'earth+fire':  'ash',
+  'earth+water': 'mud',
+  'water+wind':  'mist',
   'earth+wind':  'dust',
+  // Layer 3 — 高次合成 (300pts each)
+  'lava+water':       'rock',
+  'fire+ice':         'cloud',
+  'sand+water':       'oasis',
+  'mud+storm':        'flood',
+  'ash+water':        'clay',
+  'dust+lightning':   'plasma',
 };
 
 // 初期配置で出現する基本元素のみ（Layer1）
@@ -483,16 +624,24 @@ let discovered = {};    // { elementId: true }
 let selectedCell = null; // { row, col }
 let droppableCells = []; // ドロップ可能なセル
 let gameOver = false;
+let score = 0;           // 累計スコア
+let combo = 0;           // 連続合成コンボカウント
+let comboTimer = null;   // コンボ判定タイマー
+const COMBO_WINDOW = 1500; // ms以内で連続合成するとコンボになる
 
 // DOM参照
 const gridEl = document.getElementById('grid');
 const discCountEl = document.getElementById('disc-count');
+const scoreEl = document.getElementById('score-val');
+const comboEl = document.getElementById('combo-display');
 const compendiumEl = document.getElementById('compendium-list');
 const toast = document.getElementById('discovery-toast');
 const toastEmoji = document.getElementById('toast-emoji');
 const toastName = document.getElementById('toast-name');
+const toastLayer = document.getElementById('toast-layer');
 const gameoverModal = document.getElementById('gameover-modal');
 const finalScoreEl = document.getElementById('final-score');
+const finalDiscEl = document.getElementById('final-disc');
 
 // =====================================================
 // ゲーム初期化
@@ -501,6 +650,9 @@ function initGame() {
   gameOver = false;
   selectedCell = null;
   droppableCells = [];
+  score = 0;
+  combo = 0;
+  if (comboTimer) { clearTimeout(comboTimer); comboTimer = null; }
 
   // localStorageから図鑑を復元（セッション間でコンプリートを保持）
   try {
@@ -510,10 +662,9 @@ function initGame() {
     discovered = {};
   }
 
-  // グリッドを基本元素でランダム埋め（30%程度は空白にして操作余地を作る）
+  // グリッドを基本元素でランダム埋め（25%程度は空白にして操作余地を作る）
   grid = Array.from({ length: GRID_SIZE }, () =>
     Array.from({ length: GRID_SIZE }, () => {
-      // 約75%の確率で元素を配置、25%は空
       return Math.random() < 0.75
         ? BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)]
         : null;
@@ -525,6 +676,7 @@ function initGame() {
   saveDiscovered();
 
   gameoverModal.classList.remove('show');
+  updateComboDisplay();
   renderGrid();
   renderCompendium();
   updateScoreBar();
@@ -632,12 +784,20 @@ function mergeElements(fromRow, fromCol, toRow, toCol) {
   const resultId = getMergeResult(idA, idB);
 
   if (!resultId) {
-    // 合成ルールなし（定義漏れ）→ エラーとして無視
+    // 合成ルールなし → グリッドシェイクでフィードバック
     clearSelection();
+    shakeGrid();
     return;
   }
 
   clearSelection();
+
+  // スコア計算（コンボ込み）
+  const resultElem = ELEMENTS[resultId];
+  const basePoints = resultElem.layer === 3 ? 300 : 100;
+  incrementCombo();
+  const pts = basePoints * Math.max(1, combo);
+  score += pts;
 
   // グリッド更新
   grid[toRow][toCol] = resultId;
@@ -647,12 +807,17 @@ function mergeElements(fromRow, fromCol, toRow, toCol) {
   const isNew = !discovered[resultId];
   if (isNew) {
     discovered[resultId] = true;
+    score += 500; // 新発見ボーナス
     saveDiscovered();
     showDiscoveryToast(resultId);
+    if (resultElem.layer === 3) flashScreen(); // レアはフラッシュ演出
   }
 
-  // マージアニメーション
+  // マージアニメーション + パーティクル
   const targetCellEl = getCellEl(toRow, toCol);
+  const rect = targetCellEl.getBoundingClientRect();
+  spawnParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, resultElem.color);
+
   renderCell(toRow, toCol);
   targetCellEl.classList.add('merge-anim');
   targetCellEl.addEventListener('animationend', () => {
@@ -688,11 +853,12 @@ function replenishColumn(col) {
   // null以外を先に集め、足りない分をランダム補充
   const filled = column.filter(v => v !== null);
   while (filled.length < GRID_SIZE) {
-    // Layer2元素はまれに（5%）出現し、基本は基本元素を補充する
-    // これにより難易度が自然に上がりすぎない
+    // Layer2元素はまれに（8%）出現し、基本は基本元素を補充する
+    // 20元素でも難易度が急上昇しないよう、補充は基本元素中心に保つ
+    const RARE_SPAWNS = ['lava', 'storm', 'ice', 'sand'];
     filled.unshift(
-      Math.random() < 0.05
-        ? 'lava' // 稀にLayer2
+      Math.random() < 0.08
+        ? RARE_SPAWNS[Math.floor(Math.random() * RARE_SPAWNS.length)]
         : BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)]
     );
   }
@@ -732,9 +898,85 @@ function isGameOver() {
 
 function triggerGameOver() {
   gameOver = true;
-  const count = Object.keys(discovered).filter(id => !BASE_ELEMENTS.includes(id)).length;
-  finalScoreEl.textContent = `${Object.keys(discovered).length} / 10`;
+  const total = Object.keys(ELEMENTS).length;
+  const discCount = Object.keys(discovered).length;
+  finalScoreEl.textContent = score.toLocaleString();
+  finalDiscEl.textContent = `${discCount} / ${total} elements discovered`;
   gameoverModal.classList.add('show');
+}
+
+// =====================================================
+// コンボ管理
+// 1500ms以内に連続合成するとcomboがインクリメントされる
+// =====================================================
+function incrementCombo() {
+  combo++;
+  if (comboTimer) clearTimeout(comboTimer);
+  comboTimer = setTimeout(() => {
+    combo = 0;
+    updateComboDisplay();
+    comboTimer = null;
+  }, COMBO_WINDOW);
+  updateComboDisplay();
+}
+
+function updateComboDisplay() {
+  if (combo >= 2) {
+    comboEl.textContent = `×${combo} COMBO!`;
+    comboEl.className = 'combo-show';
+    comboEl.style.animation = 'none';
+    // reflow trigger
+    void comboEl.offsetWidth;
+    comboEl.style.animation = 'combo-bounce 0.3s ease-out';
+  } else {
+    comboEl.className = 'combo-hidden';
+  }
+}
+
+// =====================================================
+// VFX: パーティクル爆発
+// =====================================================
+function spawnParticles(cx, cy, color) {
+  const count = 8;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const angle = (i / count) * Math.PI * 2;
+    const dist = 40 + Math.random() * 30;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist;
+    p.style.cssText = `
+      left: ${cx - 3.5}px;
+      top:  ${cy - 3.5}px;
+      background: ${color};
+      --dx: ${dx}px;
+      --dy: ${dy}px;
+    `;
+    document.body.appendChild(p);
+    p.addEventListener('animationend', () => p.remove(), { once: true });
+  }
+}
+
+// =====================================================
+// VFX: グリッドシェイク (合成不可フィードバック)
+// =====================================================
+function shakeGrid() {
+  const wrapper = document.querySelector('.grid-wrapper');
+  wrapper.classList.remove('grid-shake');
+  void wrapper.offsetWidth; // reflow
+  wrapper.classList.add('grid-shake');
+  wrapper.addEventListener('animationend', () => {
+    wrapper.classList.remove('grid-shake');
+  }, { once: true });
+}
+
+// =====================================================
+// VFX: 画面フラッシュ (Layer3発見時)
+// =====================================================
+const flashOverlay = document.getElementById('flash-overlay');
+function flashScreen() {
+  flashOverlay.classList.add('active');
+  setTimeout(() => flashOverlay.classList.remove('active'), 180);
 }
 
 // =====================================================
@@ -747,13 +989,24 @@ function showDiscoveryToast(elementId) {
   toastEmoji.textContent = elem.emoji;
   toastName.textContent = elem.label;
 
+  // Layer3はレア演出を付加
+  if (elem.layer === 3) {
+    toast.classList.add('layer3');
+    toastLayer.textContent = 'RARE DISCOVERY!';
+    toastLayer.className = 'toast-layer rare';
+  } else {
+    toast.classList.remove('layer3');
+    toastLayer.textContent = `Layer ${elem.layer} element`;
+    toastLayer.className = 'toast-layer';
+  }
+
   if (toastTimer) clearTimeout(toastTimer);
   toast.classList.add('show');
 
   toastTimer = setTimeout(() => {
     toast.classList.remove('show');
     toastTimer = null;
-  }, 1800);
+  }, 2000);
 }
 
 // =====================================================
@@ -829,6 +1082,11 @@ function updateScoreBar() {
   const total = Object.keys(ELEMENTS).length;
   const count = Object.keys(discovered).length;
   discCountEl.textContent = `${count} / ${total}`;
+  scoreEl.textContent = score.toLocaleString();
+  // スコア変化時にポップアニメーション
+  scoreEl.classList.remove('pop');
+  void scoreEl.offsetWidth;
+  scoreEl.classList.add('pop');
 }
 
 // =====================================================
