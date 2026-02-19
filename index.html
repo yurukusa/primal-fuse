@@ -544,6 +544,33 @@
     margin-bottom: 20px;
   }
 
+  /* Hintボタン */
+  #hint-btn {
+    padding: 4px 12px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  #hint-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #hint-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* Hint ハイライト */
+  .cell.hint-pair {
+    border-color: #ffe082 !important;
+    background: rgba(255,224,130,0.15) !important;
+    animation: hint-pulse 0.6s ease-in-out infinite;
+  }
+  @keyframes hint-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,224,130,0.5); }
+    50%       { box-shadow: 0 0 0 6px rgba(255,224,130,0); }
+  }
+
   /* --- レスポンシブ --- */
   @media (max-width: 600px) {
     :root {
@@ -571,6 +598,7 @@
   <span>Found:</span>
   <span class="discovery-count" id="disc-count">0 / 30</span>
   <span id="combo-display" class="combo-hidden"></span>
+  <button id="hint-btn" onclick="showHint()">💡 Hint</button>
 </div>
 
 <p class="hint">Select an element — highlighted cells can merge. Discover all 30 elements!</p>
@@ -1273,6 +1301,60 @@ function shareDiscovery() {
       '_blank', 'noopener'
     );
   }
+}
+
+// =====================================================
+// Hintボタン: 合成可能ペアを1組ハイライト
+
+let hintCooldownTimer = null;
+
+function showHint() {
+  const btn = document.getElementById('hint-btn');
+  if (btn.disabled) return;
+
+  // 全セルをスキャンして合成可能なペアを探す
+  const pairs = [];
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (!grid[r][c]) continue;
+      const neighbors = [[r-1,c],[r+1,c],[r,c-1],[r,c+1]];
+      for (const [nr, nc] of neighbors) {
+        if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) continue;
+        if (!grid[nr][nc]) continue;
+        if (getMergeResult(grid[r][c], grid[nr][nc])) {
+          // 重複排除: (r,c)→(nr,nc) と (nr,nc)→(r,c) は同じペア
+          if (r < nr || (r === nr && c < nc)) {
+            pairs.push([[r,c],[nr,nc]]);
+          }
+        }
+      }
+    }
+  }
+
+  if (pairs.length === 0) return; // 合成可能ペアなし
+
+  // ランダムに1ペア選んでハイライト
+  const [[r1,c1],[r2,c2]] = pairs[Math.floor(Math.random() * pairs.length)];
+  const cellAt = (r, c) => document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+  const el1 = cellAt(r1, c1);
+  const el2 = cellAt(r2, c2);
+  if (el1) el1.classList.add('hint-pair');
+  if (el2) el2.classList.add('hint-pair');
+
+  // 1.5秒後にハイライト解除
+  setTimeout(() => {
+    if (el1) el1.classList.remove('hint-pair');
+    if (el2) el2.classList.remove('hint-pair');
+  }, 1500);
+
+  // 3秒クールダウン
+  btn.disabled = true;
+  btn.textContent = '⏳ Hint';
+  clearTimeout(hintCooldownTimer);
+  hintCooldownTimer = setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = '💡 Hint';
+  }, 3000);
 }
 
 // =====================================================
