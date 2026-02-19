@@ -373,6 +373,21 @@
     box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
   }
 
+  .btn-shuffle {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: block;
+    margin: 8px auto 0;
+  }
+  .btn-shuffle:hover { border-color: var(--accent); color: var(--accent); }
+
   /* --- ヒントテキスト --- */
   .hint {
     font-size: 11px;
@@ -635,6 +650,7 @@
     <div class="final-disc" id="final-disc">0 / 30 elements</div>
     <br>
     <button class="btn-restart" onclick="initGame()">Play Again</button>
+    <button class="btn-shuffle" onclick="shuffleGrid()">🔀 Shuffle (–500 pts)</button>
   </div>
 </div>
 
@@ -1019,6 +1035,29 @@ function triggerGameOver() {
   gameoverModal.classList.add('show');
 }
 
+function shuffleGrid() {
+  // ゲームオーバーモーダルを閉じてグリッドをリセット（スコア・図鑑は保持）
+  gameoverModal.classList.remove('show');
+  gameOver = false;
+  score = Math.max(0, score - 500); // -500pts ペナルティ
+
+  // グリッド全体をLayer1要素でリフレッシュ（進行状況を打破）
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      // 25%の確率でLayer2を残し、それ以外はLayer1に戻す（多様性を保つ）
+      const elem = ELEMENTS[grid[r][c]];
+      if (elem && elem.layer >= 3) {
+        grid[r][c] = BASE_ELEMENTS[Math.floor(Math.random() * BASE_ELEMENTS.length)];
+      }
+    }
+  }
+
+  selectedCell = null;
+  droppableCells = [];
+  updateScoreBar();
+  renderGrid();
+}
+
 // =====================================================
 // コンボ管理
 // 1500ms以内に連続合成するとcomboがインクリメントされる
@@ -1331,7 +1370,12 @@ function showHint() {
     }
   }
 
-  if (pairs.length === 0) return; // 合成可能ペアなし
+  if (pairs.length === 0) {
+    // 合成不可能を視覚的に伝える（ゲームオーバー寸前の警告）
+    btn.textContent = '⚠️ No moves!';
+    setTimeout(() => { btn.textContent = '💡 Hint'; }, 2000);
+    return;
+  }
 
   // ランダムに1ペア選んでハイライト
   const [[r1,c1],[r2,c2]] = pairs[Math.floor(Math.random() * pairs.length)];
