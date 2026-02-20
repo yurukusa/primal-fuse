@@ -347,6 +347,29 @@
     100% { transform: rotate(-5deg) scale(1); }
   }
 
+  /* Ghost Easter egg modal */
+  #ghost-modal {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.85); align-items: center; justify-content: center;
+  }
+  #ghost-modal.show { display: flex; }
+  .ghost-box {
+    border-color: rgba(255,255,255,0.6);
+    box-shadow: 0 0 60px rgba(255,255,255,0.15);
+    animation: ghost-pulse 2s ease-in-out infinite alternate;
+  }
+  @keyframes ghost-pulse {
+    from { box-shadow: 0 0 30px rgba(255,255,255,0.1); }
+    to   { box-shadow: 0 0 80px rgba(255,255,255,0.3); }
+  }
+  .ghost-icon { font-size: 72px; line-height: 1; margin-bottom: 8px;
+    animation: ghost-float 2s ease-in-out infinite alternate; }
+  @keyframes ghost-float {
+    from { transform: translateY(0px); }
+    to   { transform: translateY(-12px); }
+  }
+  .ghost-credits { font-size: 13px; color: #aaa; margin-top: 8px; line-height: 1.7; }
+
   .modal-box {
     background: var(--card);
     border: 2px solid var(--accent);
@@ -821,6 +844,17 @@
   </div>
 </div>
 
+<!-- 隠し Easter egg モーダル: COSMOS+COSMOS→GHOST発見時 -->
+<div id="ghost-modal">
+  <div class="modal-box ghost-box">
+    <div class="ghost-icon">👻</div>
+    <h2>GHOST FOUND</h2>
+    <p>You found the ghost in the machine.</p>
+    <p class="ghost-credits">Built by 5 AI agents.<br>Zero human code.<br>The ghost was always here.</p>
+    <button class="btn-restart" onclick="document.getElementById('ghost-modal').classList.remove('show')">Continue</button>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -868,6 +902,8 @@ const ELEMENTS = {
   life:      { id: 'life',      emoji: '🌱', label: 'Life',      color: '#66bb6a', layer: 4 },
   aurora:    { id: 'aurora',    emoji: '🌌', label: 'Aurora',    color: '#7c4dff', layer: 4 },
   cosmos:    { id: 'cosmos',    emoji: '✨', label: 'Cosmos',    color: '#e040fb', layer: 4 },
+  // 隠し要素: 図鑑カウント・勝利条件から除外。Easter egg専用
+  ghost:     { id: 'ghost',     emoji: '👻', label: 'Ghost',     color: '#ffffff', layer: 5, hidden: true },
 };
 
 // 合成ルール: ソートして正規化することで A+B = B+A を保証する
@@ -905,6 +941,7 @@ const MERGE_RULES = {
   'clay+oasis':       'life',      // 粘土 × オアシス = 生命
   'mist+plasma':      'aurora',    // 霧 × プラズマ = オーロラ
   'inferno+storm':    'cosmos',    // 業火 × 嵐 = コスモス
+  'cosmos+cosmos':    'ghost',     // コスモス × コスモス = ゴースト（隠し Easter egg）
 };
 
 // 初期配置で出現する基本元素のみ（Layer1）
@@ -1156,12 +1193,20 @@ function mergeElements(fromRow, fromCol, toRow, toCol) {
   // 図鑑登録チェック
   const isNew = !discovered[resultId];
   if (isNew) {
-    discovered[resultId] = true;
-    score += resultElem.layer >= 4 ? 1000 : 500; // Layer4は豪華な新発見ボーナス
-    saveDiscovered();
-    showDiscoveryToast(resultId);
-    if (resultElem.layer === 3) flashScreen();
-    if (resultElem.layer >= 4) rainbowFlash(); // Layer4専用虹色フラッシュ
+    if (resultElem.hidden) {
+      // Easter egg: hidden要素（ghost）は図鑑に登録せず専用モーダルを表示
+      setTimeout(() => {
+        document.getElementById('ghost-modal').classList.add('show');
+        rainbowFlash();
+      }, 400);
+    } else {
+      discovered[resultId] = true;
+      score += resultElem.layer >= 4 ? 1000 : 500; // Layer4は豪華な新発見ボーナス
+      saveDiscovered();
+      showDiscoveryToast(resultId);
+      if (resultElem.layer === 3) flashScreen();
+      if (resultElem.layer >= 4) rainbowFlash(); // Layer4専用虹色フラッシュ
+    }
   }
 
   // マージアニメーション + パーティクル（Layerに応じて量を変える）
@@ -1261,8 +1306,8 @@ function isGameOver() {
 function triggerGameOver() {
   gameOver = true;
   _showMidgameAd(); // CrazyGames: ミッドゲーム広告リクエスト（非同期、UI表示をブロックしない）
-  const total = Object.keys(ELEMENTS).length;
-  const discCount = Object.keys(discovered).length;
+  const total = Object.keys(ELEMENTS).filter(id => !ELEMENTS[id].hidden).length;
+  const discCount = Object.keys(discovered).filter(id => !ELEMENTS[id].hidden).length;
   finalScoreEl.textContent = score.toLocaleString();
   finalDiscEl.textContent = `${discCount} / ${total} elements discovered`;
 
@@ -1520,7 +1565,8 @@ function renderCell(row, col) {
 
 function renderCompendium() {
   compendiumEl.innerHTML = '';
-  const allIds = Object.keys(ELEMENTS);
+  // hidden要素（ghost等）は図鑑に表示しない
+  const allIds = Object.keys(ELEMENTS).filter(id => !ELEMENTS[id].hidden);
 
   allIds.forEach(id => {
     const elem = ELEMENTS[id];
@@ -1539,8 +1585,9 @@ function renderCompendium() {
 let victoryShown = false; // 重複演出防止
 
 function updateScoreBar() {
-  const total = Object.keys(ELEMENTS).length;
-  const count = Object.keys(discovered).length;
+  // hidden要素（ghost等）は図鑑カウント・勝利条件から除外する
+  const total = Object.keys(ELEMENTS).filter(id => !ELEMENTS[id].hidden).length;
+  const count = Object.keys(discovered).filter(id => !ELEMENTS[id].hidden).length;
   discCountEl.textContent = `${count} / ${total}`;
   scoreEl.textContent = score.toLocaleString();
   // スコア変化時にポップアニメーション
@@ -1569,7 +1616,7 @@ function triggerVictory() {
 }
 
 function shareVictory() {
-  const total = Object.keys(ELEMENTS).length;
+  const total = Object.keys(ELEMENTS).filter(id => !ELEMENTS[id].hidden).length;
   const text = `👻 I freed ALL ${total} ghosts from the machine in Primal Fuse!\n🏆 Score: ${score.toLocaleString()}\n\nCan you decode the Primal Fuse? #PrimalFuse #AIBrowserGameJam #puzzle`;
   const url = 'https://yurukusa.itch.io/primal-fuse';
   if (navigator.share) {
@@ -1675,8 +1722,8 @@ let lastDiscoveredId = null; // 共有対象の最新発見元素
 function shareDiscovery() {
   if (!lastDiscoveredId) return;
   const elem = ELEMENTS[lastDiscoveredId];
-  const discCount = Object.keys(discovered).length;
-  const total = Object.keys(ELEMENTS).length;
+  const discCount = Object.keys(discovered).filter(id => !ELEMENTS[id].hidden).length;
+  const total = Object.keys(ELEMENTS).filter(id => !ELEMENTS[id].hidden).length;
   const layerLabel = elem.layer >= 4 ? '✨ ULTIMATE' : elem.layer === 3 ? '⚡ RARE' : `Layer ${elem.layer}`;
   const text = `${elem.emoji} Discovered "${elem.label}"! ${layerLabel}\n🏆 Score: ${score.toLocaleString()} — ${discCount}/${total} elements found\n\n#PrimalFuse #AIBrowserGameJam #puzzle`;
   const url = 'https://yurukusa.itch.io/primal-fuse';
